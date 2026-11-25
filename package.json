@@ -1,0 +1,48 @@
+{
+  "name": "@yuzool/palm",
+  "version": "0.1.0",
+  "description": "Palm for any agent or terminal: tested job sheets, dated platform data, local check tools that let an AI agent see what it makes, and desks for images, invoices and proposals, outreach, the App Store and search. Palm runs no AI.",
+  "type": "module",
+  "bin": {
+    "palm": "bin/palm.mjs"
+  },
+  "exports": {
+    ".": "./lib/client.mjs",
+    "./doctor": "./lib/doctor.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "accessibility",
+    "agent",
+    "app-store",
+    "claude",
+    "cli",
+    "codex",
+    "design",
+    "email",
+    "invoice",
+    "mcp",
+    "mcp-server",
+    "outreach",
+    "palm",
+    "proposal",
+    "search-console",
+    "seo",
+    "social-media"
+  ],
+  "homepage": "https://www.yuzool.com/palm/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pearcoderman/palm.git"
+  },
+  "license": "MIT",
+  "author": "Yuzool"
+}
