@@ -34,9 +34,12 @@ palm doctor
 | `palm doctor` | Checks Node, Chrome, puppeteer-core, jsqr, ffmpeg, a PDF renderer, the server and your key; prints the install line for anything missing. |
 | `palm design …` | Image desk: a Quick Design design at every platform size, as MP4, one per CSV row, checked where it's seen. |
 | `palm invoice …` · `palm proposal …` | Invoices and proposals the client opens from a link, PDFs, a ledger, reminder drafts. |
+| `palm pdf …` | Merge, split, rotate, compress, passwords; redaction that's verified; requests to sign (PDF Tools, Redact). |
+| `palm passport …` | A passport, visa or ID photo to each document's official rules, with a print sheet and the digital file. |
+| `palm pages …` | A link-in-bio page, one-page site, business card or menu that's live from its link, and QR codes checked to scan. |
 | `palm outreach …` | Short personal email sequences, drafted daily within a cap (Pro). |
 | `palm asc …` · `palm search …` | App Store Connect and search (Search Console, Bing, IndexNow) desks, with your own keys (Pro). |
-| `palm <desk>-mcp` | Any desk as a local MCP server: `asc-mcp`, `search-mcp`, `design-mcp`, `invoice-mcp`, `outreach-mcp`. |
+| `palm <desk>-mcp` | Any desk as a local MCP server: `design-mcp`, `invoice-mcp`, `pdf-mcp`, `passport-mcp`, `pages-mcp`, `outreach-mcp`, `asc-mcp`, `search-mcp`. |
 | `palm setup` | `npm i puppeteer-core jsqr` in this project. |
 | `palm login [key]` · `palm logout` | Saves your Pro key to `~/.config/palm/key` (only you can read it). Or set `PALM_KEY`. |
 
@@ -138,3 +141,40 @@ Every email ends with your name, your postal address and an unsubscribe line. St
 ## The weekly brief (Pro)
 
 `palm brief` puts the week across every desk on one page, with what to do today at the top: money owed and overdue, proposals waiting, reminders due, outreach due and replies, unanswered App Store reviews and sales, search clicks and pages that lost them, and anything Palm Watch found. Each part appears only when that desk is set up. `palm brief --save` writes `~/Documents/Palm/brief-YYYY-MM-DD.md`; `palm brief schedule --day mon --hour 9` does that every week on a Mac with a notification.
+
+## PDF desk
+
+`palm pdf` runs Yuzool PDF Tools' and Redact's own code in your Chrome; your files never leave your machine.
+
+```
+palm pdf merge a.pdf b.pdf scan.jpg --out merged.pdf      merge (also extract, split, rotate, compress, info) (free)
+palm pdf password add contract.pdf --no-copy              AES-256, checked after; password remove too (free)
+palm pdf redact statement.pdf --find emails,phones,iban   black it out, then the saved file is searched again: nothing saved unless it's really gone (Pro)
+palm pdf sign request contract.pdf --signer "Sam Patel <sam@example.com>" --from "Alex <alex@example.com>"   they sign at yuzool.com/sign (Pro)
+palm pdf sign check signed.pdf --original contract.pdf    who signed, and is it still the document you sent (Pro)
+```
+
+## Passport photo desk
+
+`palm passport` runs Yuzool Passport Photo's rules (43 documents, each from its official page, dated) and its face finder in your Chrome; the photo never leaves your machine.
+
+```
+palm passport docs japan                                  documents, sizes and rules with their sources (free)
+palm passport make me.jpg --doc uk-passport --paper 4x6   the photo at size (300 dpi), the checks, a print sheet, the digital file (free)
+palm passport make a.jpg b.jpg --docs uk-passport,us-passport   several people on one sheet (Pro)
+```
+
+The checks are advice against the published rules: the office that takes the photo decides.
+
+## Pages desk
+
+`palm pages` makes a page that's live the moment its link exists (Link in Bio, Website Maker, Business Card and Menu Maker pages travel inside their own link; nothing is uploaded), checked with each app's own code and looked at on a phone, plus QR codes that are decoded at their printed size before they're called done.
+
+```
+palm pages example --kind card > card.json                a page to start from (link-in-bio, website, card, menu)
+palm pages make card.json --kind card                     the link, phone and desktop screenshots, every link checked (free)
+palm pages qr https://example.com --size 25mm             a QR at 300 dpi, decoded at that size (free)
+palm pages cards team.csv --qr-size 25mm                  a business card per row, each checked (Pro)
+```
+
+The page is public to anyone who has its link.

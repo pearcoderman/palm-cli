@@ -13,6 +13,12 @@ import * as search from '../lib/search.mjs';
 import { serve as searchServe, defaultPro as searchPro } from '../lib/search-mcp.mjs';
 import * as design from '../lib/design.mjs';
 import { serve as designServe, defaultPro as designPro } from '../lib/design-mcp.mjs';
+import * as pages from '../lib/pages.mjs';
+import { serve as pagesServe, defaultPro as pagesPro } from '../lib/pages-mcp.mjs';
+import * as passport from '../lib/passport.mjs';
+import * as pdf from '../lib/pdf.mjs';
+import { serve as pdfServe, defaultPro as pdfPro } from '../lib/pdf-mcp.mjs';
+import { serve as passportServe, defaultPro as passportPro } from '../lib/passport-mcp.mjs';
 import * as invoice from '../lib/invoice.mjs';
 import { serve as invoiceServe, defaultPro as invoicePro } from '../lib/invoice-mcp.mjs';
 import * as outreach from '../lib/outreach.mjs';
@@ -42,6 +48,12 @@ const HELP = {
   palm search-mcp                the search desk as a local MCP server (stdio)
   palm design …                  image desk: Quick Design designs to every platform size, MP4 and one per CSV row, checked (palm design --help)
   palm design-mcp                the image desk as a local MCP server (stdio)
+  palm pages …                   pages desk: live pages with no hosting, QR codes checked to scan (palm pages --help)
+  palm pages-mcp                 the pages desk as a local MCP server (stdio)
+  palm pdf …                     PDF desk: merge, split, rotate, compress, passwords; redact (verified) and signing requests (Pro) (palm pdf --help)
+  palm pdf-mcp                   the PDF desk as a local MCP server (stdio)
+  palm passport …                passport photo desk: a passport, visa or ID photo from your photo, checked, print sheet + digital file (palm passport --help)
+  palm passport-mcp              the passport photo desk as a local MCP server (stdio)
   palm invoice …                 invoice desk: a link the client pays from, a PDF, a ledger, reminder drafts (palm invoice --help)
   palm proposal …                a proposal the client opens, accepts and signs; accepted → its invoices (palm proposal --help)
   palm invoice-mcp               the invoice and proposal desk as a local MCP server (stdio)
@@ -103,6 +115,40 @@ Sizes (checked ${design.SIZES_CHECKED}): ${Object.keys(design.TARGETS).join(', '
 Presets: ${Object.entries(design.PRESETS).filter(([k]) => k !== 'all').map(([k, v]) => k + ' = ' + v.join(' ')).join('; ')}; all.
 Every run writes manifest.json (files, sizes, alt text, issues) and sheet.png. Exit 1 when a check fails.
 Needs Chrome and puppeteer-core in this folder (palm doctor).`,
+  pages: `palm pages: Palm's pages desk. A live page with no hosting: Link in Bio, Website Maker, Business Card and Menu Maker
+pages travel inside their own yuzool.com link (nothing uploaded), so the page is live, and public to anyone with the link,
+the moment the link exists. Checked with each app's own code; looked at in your Chrome; the preview is never counted as a visit.
+
+  palm pages example --kind link-in-bio|website|card|menu [--template id]   a page in the app's format to start from (free)
+  palm pages make <page.json|link|-> --kind <kind> [--out dir]   validate (unsafe links refused, Pro looks → free ones), the link,
+                                                  phone (390 px) and desktop screenshots, console errors, every link checked,
+                                                  link length vs a QR code and a bio field; manifest.json (free)
+  palm pages qr <url|text> [--size 30mm|3cm|1.2in|600px] [--out qr.png]   a QR (PNG at 300 dpi + SVG) decoded with jsQR at that
+                                                  size; fails unless it reads back the same text; Palm's phone test (20 cm) (free)
+  palm pages qr --page <dir> [--size 30mm] [--contact]   a made page's QR, as its app makes it (a card: its link, or the vCard) (free)
+  palm pages cards <people.csv> [--base card.json] [--qr-size 25mm] [--out dir]   a business card per row (name, title, company,
+                                                  phone, email, website, address), each looked at, each QR checked (Pro)
+  palm pages qrs <list.csv> [--size 30mm] [--out dir]   a QR per row (url/link/text column; name for file names), each checked (Pro)
+
+Short links (yuzool.com/bio/<name>, /site/, /card/, /menu/) are each app's own Pro, made in the app; Palm never makes them.
+Exit 1 when a check fails. Screenshots need Chrome and puppeteer-core in this folder (palm doctor); QR codes need neither.`,
+  pdf: pdf.HELP,
+  'pdf-mcp': 'palm pdf-mcp   The PDF desk as a local MCP server over stdio. Claude Code: claude mcp add palm-pdf -- npx -y github:pearcoderman/palm-cli pdf-mcp',
+  passport: `palm passport: Palm's passport photo desk. Yuzool Passport Photo's own rules and code run here in your Chrome; the photo never leaves this machine.
+
+  palm passport docs [words]                       documents: size, head, background, digital file, official source + date checked; "taken for you" when the office takes it (free)
+  palm passport doc <id>                           every rule for one document (free)
+  palm passport make <photo> --doc <id> [--paper 4x6|5x7|a4|letter] [--bg keep|plain|white|#hex] [--glasses-off] [--baby] [--out dir]
+                                                   the photo at the document's size (300 dpi JPEG), the app's checks, a print sheet,
+                                                   the digital upload file, look-1.png with the app's guides, page.png (free: one photo)
+  palm passport make <a.jpg> <b.jpg> --docs uk-passport,us-passport   several people on one sheet (Pro)
+  palm passport make <photo> --size 30x40 [--head 24-30]               a custom size for a form with its own rules (Pro)
+
+--bg: keep (default; best on a plain light wall), plain (the document's own colour, cut out on this machine), white or a
+colour: free when the document allows it, any other is Pro. The checks are advice against the published rules, never a
+promise: the office that takes the photo decides. Exit 1 when no face is found or a check says fix.
+Needs Chrome and puppeteer-core (palm doctor); the face finder and cut-out models download once.`,
+  'passport-mcp': 'palm passport-mcp   The passport photo desk as a local MCP server over stdio. Claude Code: claude mcp add palm-passport -- npx -y github:pearcoderman/palm-cli passport-mcp',
   invoice: `palm invoice: Palm's invoice desk. Runs here; the ledger stays on this machine; Palm never sends email.
 
   palm invoice make <invoice.json> [--out dir] [--no-record] [--no-pdf]   check it, total it, and make the client's link
@@ -416,6 +462,48 @@ switch (cmd) {
     break;
   }
   case 'design-mcp': { designServe(); break; }
+  case 'pdf-mcp': { pdfServe(); break; }
+  case 'pdf': { process.exit(await pdf.cli(rest, { print, fail, pro: pdfPro })); }
+  case 'passport-mcp': { passportServe(); break; }
+  case 'passport': {
+    const [sub, ...a] = rest;
+    if (!sub || sub === 'help') fail(HELP.passport);
+    const VAL = ['--out', '--doc', '--docs', '--paper', '--bg', '--size', '--head'];
+    const opt = (n, d) => { const i = a.indexOf('--' + n); return i >= 0 ? a[i + 1] : d; };
+    const has = (n) => a.includes('--' + n);
+    const pos = a.filter((x, i) => !x.startsWith('--') && !(i > 0 && VAL.includes(a[i - 1])));
+    const run = async (f) => { try { return await f(); } catch (e) { if (e.code === 3) { print(e.message, { locked: true }); process.exit(3); } fail(e.message, e.code || 4); } };
+    if (sub === 'docs') { const x = await run(() => passport.docs({ query: pos.join(' ') })); print(passport.docsText(x), x); break; }
+    if (sub === 'doc') { const x = await run(() => passport.doc(need(pos[0], 'passport'))); print(JSON.stringify(x, null, 2), x); break; }
+    if (sub !== 'make') fail(HELP.passport);
+    const docs = (opt('docs') || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const people = pos.map((photo, i) => ({ photo, doc: docs[i] || opt('doc') || docs[0] }));
+    const r = await run(() => passport.make({ people, doc: opt('doc'), paper: opt('paper'), bg: opt('bg'), size: opt('size'), head: opt('head'), glassesOff: has('glasses-off'), baby: has('baby'), out: opt('out', 'palm-passport'), pro: passportPro }));
+    print(passport.summary(r), r); process.exit(r.ok ? 0 : 1);
+  }
+  case 'pages-mcp': { pagesServe(); break; }
+  case 'pages': {
+    const [sub, ...a] = rest;
+    if (!sub || sub === 'help') fail(HELP.pages);
+    const VAL = ['--out', '--kind', '--size', '--template', '--page', '--base', '--qr-size', '--limit'];
+    const opt = (n, d) => { const i = a.indexOf('--' + n); return i >= 0 ? a[i + 1] : d; };
+    const has = (n) => a.includes('--' + n);
+    const pos = a.filter((x, i) => !x.startsWith('--') && !(i > 0 && VAL.includes(a[i - 1])));
+    const run = async (f) => { try { return await f(); } catch (e) { fail(e.message, e.code || 4); } };
+    const done = (r) => { print(pages.summary(r), r); process.exit(r.ok ? 0 : 1); };
+    if (sub === 'example') { const x = await run(() => pages.example(need(opt('kind'), 'pages'), opt('template'))); print(JSON.stringify(x.page, null, 2), x); if (x.templates.length && !json) console.error(`Templates (--template): ${x.templates.join(', ')}`); break; }
+    if (sub === 'make') { const src = need(pos[0], 'pages'); done(await run(() => pages.make(src, { kind: opt('kind'), out: opt('out', 'palm-page') }))); }
+    if (sub === 'qr') {
+      if (opt('page')) done(await run(() => pages.pageQR(opt('page'), { size: opt('size', '30mm'), contact: has('contact'), out: opt('out') })));
+      done(await run(() => pages.qr(need(pos.join(' '), 'pages'), { size: opt('size', '30mm'), out: opt('out', 'qr.png') })));
+    }
+    if (!['cards', 'qrs'].includes(sub)) fail(HELP.pages);
+    if (!(await pagesPro())) { print('A card per CSV row and many QR codes are part of Palm Pro (make and qr are free). Run `palm login` (or set PALM_KEY). About Pro: https://www.yuzool.com/palm/#pro', { locked: true }); process.exit(3); }
+    const csv = readFileSync(need(pos[0], 'pages'), 'utf8');
+    if (sub === 'cards') done(await run(() => pages.makeCards(csv, { base: opt('base') ? JSON.parse(readFileSync(opt('base'), 'utf8')) : {}, out: opt('out', 'palm-cards'), qrSize: opt('qr-size', '25mm'), limit: Number(opt('limit', 200)) })));
+    if (sub === 'qrs') done(await run(() => pages.qrBatch(csv, { size: opt('size', '30mm'), out: opt('out', 'palm-qr') })));
+    break;
+  }
   case 'design': {
     const [sub, ...a] = rest;
     if (!sub || sub === 'help') fail(HELP.design);
