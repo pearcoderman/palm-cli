@@ -38,8 +38,9 @@ palm doctor
 | `palm passport …` | A passport, visa or ID photo to each document's official rules, with a print sheet and the digital file. |
 | `palm pages …` | A link-in-bio page, one-page site, business card or menu that's live from its link, and QR codes checked to scan. |
 | `palm outreach …` | Short personal email sequences, drafted daily within a cap (Pro). |
+| `palm social …` | The week's posts checked against each platform's limits, then queued as drafts (or scheduled) in your own Postiz or Buffer, or posted to Bluesky. Nothing is sent without `--confirm`. |
 | `palm asc …` · `palm search …` | App Store Connect and search (Search Console, Bing, IndexNow) desks, with your own keys (Pro). |
-| `palm <desk>-mcp` | Any desk as a local MCP server: `design-mcp`, `invoice-mcp`, `pdf-mcp`, `passport-mcp`, `pages-mcp`, `outreach-mcp`, `asc-mcp`, `search-mcp`. |
+| `palm <desk>-mcp` | Any desk as a local MCP server: `design-mcp`, `invoice-mcp`, `pdf-mcp`, `passport-mcp`, `pages-mcp`, `outreach-mcp`, `social-mcp`, `asc-mcp`, `search-mcp`. |
 | `palm setup` | `npm i puppeteer-core jsqr` in this project. |
 | `palm login [key]` · `palm logout` | Saves your Pro key to `~/.config/palm/key` (only you can read it). Or set `PALM_KEY`. |
 
@@ -138,9 +139,35 @@ palm outreach-mcp                         the same as a local MCP server (claude
 
 Every email ends with your name, your postal address and an unsubscribe line. State: `~/.config/palm/outreach/state.json`.
 
+## Social desk
+
+`palm social` checks the week's posts, then hands them to the scheduler you already use, through its own public API with your own key: **Postiz** (cloud or self-hosted) or **Buffer**, or straight to **Bluesky** with an app password. Palm doesn't run a scheduler: platform approvals, token refresh, retries and the queue stay the scheduler's.
+
+```
+palm social connect postiz [--url https://your-postiz]   key from POSTIZ_API_KEY, else asked for without showing it
+palm social connect buffer [--org <id>]           a personal key (publish.buffer.com/settings/api) or BUFFER_API_KEY
+palm social connect bluesky --handle you.bsky.social     an app password, never your main one
+palm social channels                             connected channels: the ids and names to use in "to"
+palm social check post.json                      every post against its platform's limits (free)
+palm social queue post.json                      dry run: exactly what would go where and when (Pro)
+palm social queue post.json --confirm            drafts in your scheduler (Pro)
+palm social queue post.json --schedule --confirm into its queue at each post's time (Pro)
+palm social queue post.json --now --confirm      post now (the only way to post to Bluesky directly) (Pro)
+palm social list                                 what Palm queued, and your scheduler's drafts and queue (Pro)
+palm social-mcp                                  the same as a local MCP server (claude mcp add palm-social -- npx -y github:pearcoderman/palm-cli social-mcp)
+```
+
+`post.json`: `{"timeZone":"Europe/London","when":"2026-12-01 09:30","link":"https://…","images":[{"file":"01.jpg","alt":"…","url":"https://… (Buffer needs a public URL)"}],"posts":[{"to":"linkedin","text":"…"},{"to":"postiz:x","text":"…","when":"2026-12-01 12:00"}]}`. `check` measures each post the way its platform does (X's weighted count, Bluesky's graphemes, the scheduler's own limit), the images (count, file size, shape, minimum size), alt text on every image, the link and the time (an explicit time zone; past, missing or doubled times), and runs Palm's `multi-image-check` and `share-preview` when they're on your machine. It reports problems and changes nothing. Nothing leaves your machine without `--confirm`; posts go in as drafts unless you say `--schedule`; never "now" unless `--now --confirm`. What was queued is kept in `~/.config/palm/social/ledger.json`, so running it again never queues a post twice. Keys stay in `~/.config/palm/social/` (only you can read them) and are never printed.
+
 ## The weekly brief (Pro)
 
-`palm brief` puts the week across every desk on one page, with what to do today at the top: money owed and overdue, proposals waiting, reminders due, outreach due and replies, unanswered App Store reviews and sales, search clicks and pages that lost them, and anything Palm Watch found. Each part appears only when that desk is set up. `palm brief --save` writes `~/Documents/Palm/brief-YYYY-MM-DD.md`; `palm brief schedule --day mon --hour 9` does that every week on a Mac with a notification.
+`palm brief` puts the week across every desk on one page, with a one-line summary ("3 things need you: 1 site problem, 2 overdue invoices") and what to do today at the top: problems Palm Watch found on your pages, new and unanswered App Store reviews and your ratings, Search Console clicks, impressions and top query positions, money owed, overdue and due this week, proposals waiting, reminders due, outreach due and replies. A desk that isn't set up says so in one line (and how to connect it); the rest still runs.
+
+Week over week: each run keeps a small snapshot of its numbers in `~/.config/palm/brief/snapshots/YYYY-MM-DD.json`, and each part says what changed since last week's run ("2 new problems on example.com (1 → 3)", `"menu ideas" 8.2 → 5.1`, "Overdue invoices: 1 → 2"). The brief only reads: it drafts, marks and sends nothing (Palm Watch is read with `list`, so `palm watch report` still shows its news).
+
+- `palm brief --save` writes `~/Documents/Palm/Brief/YYYY-MM-DD.md` and a self-contained `.html` page, plus `latest.md` / `latest.html`.
+- `--email-draft [to]` also writes an unsent `.eml` (X-Unsent: 1); Palm never sends it. `--notify` shows a Mac notification with the summary.
+- `palm brief schedule [--day mon] [--time 09:00] [--email-draft [to]]` does all that every week on a Mac (a LaunchAgent; Monday 09:00 by default; elsewhere it prints a cron line); `--off` stops it. The job can't see your shell's environment, so save the Palm key with `palm login`, and keep App Store and search settings in their config files (the command warns if they're only in environment variables).
 
 ## PDF desk
 

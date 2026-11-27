@@ -24,6 +24,8 @@ import { serve as invoiceServe, defaultPro as invoicePro } from '../lib/invoice-
 import * as outreach from '../lib/outreach.mjs';
 import * as briefs from '../lib/brief.mjs';
 import { serve as outreachServe, defaultPro as outreachPro } from '../lib/outreach-mcp.mjs';
+import * as social from '../lib/social.mjs';
+import { serve as socialServe, defaultPro as socialPro } from '../lib/social-mcp.mjs';
 
 const argv = process.argv.slice(2);
 const json = argv.includes('--json');
@@ -57,9 +59,11 @@ const HELP = {
   palm invoice …                 invoice desk: a link the client pays from, a PDF, a ledger, reminder drafts (palm invoice --help)
   palm proposal …                a proposal the client opens, accepts and signs; accepted → its invoices (palm proposal --help)
   palm invoice-mcp               the invoice and proposal desk as a local MCP server (stdio)
-  palm brief [--save] · brief schedule   the week across every desk, what to do today on top (Pro)
+  palm brief [--save] · brief schedule   the week across every desk, what needs you on top, what changed since last week
   palm outreach …                outreach desk (Pro): personal email sequences, drafted daily within a cap; stops on replies (palm outreach --help)
   palm outreach-mcp              the outreach desk as a local MCP server (stdio)
+  palm social …                  social desk: posts checked, then queued as drafts in your Postiz or Buffer, or posted to Bluesky (palm social --help)
+  palm social-mcp                the social desk as a local MCP server (stdio)
   palm setup                     npm i puppeteer-core jsqr in this project
   palm login [key] · palm logout Palm Pro key (or set PALM_KEY)
 
@@ -133,6 +137,8 @@ the moment the link exists. Checked with each app's own code; looked at in your 
 Short links (yuzool.com/bio/<name>, /site/, /card/, /menu/) are each app's own Pro, made in the app; Palm never makes them.
 Exit 1 when a check fails. Screenshots need Chrome and puppeteer-core in this folder (palm doctor); QR codes need neither.`,
   pdf: pdf.HELP,
+  social: social.HELP,
+  'social-mcp': 'palm social-mcp   The social desk as a local MCP server over stdio. Claude Code: claude mcp add palm-social -- npx -y github:pearcoderman/palm-cli social-mcp',
   'pdf-mcp': 'palm pdf-mcp   The PDF desk as a local MCP server over stdio. Claude Code: claude mcp add palm-pdf -- npx -y github:pearcoderman/palm-cli pdf-mcp',
   passport: `palm passport: Palm's passport photo desk. Yuzool Passport Photo's own rules and code run here in your Chrome; the photo never leaves this machine.
 
@@ -192,12 +198,17 @@ written to again.
 sequence.json: {"name":"cafes","from":{"name":"Alex Moore","email":"alex@…","address":"12 Mill Lane, Bristol BS1 4AA"},"perDay":15,
   "steps":[{"day":0,"subject":"Menus for {{company}}","body":"Hi {{first|there}},\n\n…"},{"day":4,"body":"…"},{"day":10,"body":"…"}]}
 State: ~/.config/palm/outreach/state.json (or --state / PALM_OUTREACH_STATE).`,
-  brief: `palm brief: one page for the week across Palm's desks, with what to do today on top (Pro). Money (owed, overdue,
-proposals waiting, reminders due), outreach (due, replies), the App Store (unanswered reviews, sales), search (clicks, pages
-that lost them) and Palm Watch; each part only when that desk is set up. Read here with your own keys.
+  brief: `palm brief: one page for the week across Palm's desks, what needs you on top. Palm Watch (problems on your pages),
+the App Store (new reviews, unanswered ones, ratings), search (clicks, impressions, top query positions), money (overdue,
+due this week, proposals waiting), outreach; each part says "not connected" in one line until that desk is set up, and
+says what changed since last week's run (a small snapshot in ~/.config/palm/brief/snapshots/). It only reads: nothing is
+drafted, marked or sent. Without Palm Pro it shows your invoices and proposals; Pro adds the rest and the schedule.
 
-  palm brief [--days 7] [--save [dir]]            print it (--save writes ~/Documents/Palm/brief-YYYY-MM-DD.md)
-  palm brief schedule [--day mon] [--hour 9] [--remove]   every week on a Mac (a LaunchAgent: saves it and shows a notification)`,
+  palm brief [--days 7] [--save [dir]] [--email-draft [to]] [--notify]
+        --save writes ~/Documents/Palm/Brief/YYYY-MM-DD.md + .html and latest.md + latest.html
+        --email-draft writes an unsent .eml next to them (Palm never sends it) · --notify shows a Mac notification
+  palm brief schedule [--day mon] [--time 09:00] [--email-draft [to]] | --off
+        every week on a Mac (a LaunchAgent: saves it and shows the one-line summary as a notification); prints a cron line elsewhere`,
   'outreach-mcp': 'palm outreach-mcp   The outreach desk as a local MCP server over stdio. Claude Code: claude mcp add palm-outreach -- npx -y github:pearcoderman/palm-cli outreach-mcp',
   'invoice-mcp': 'palm invoice-mcp   The invoice desk as a local MCP server over stdio. Claude Code: claude mcp add palm-invoice -- npx -y github:pearcoderman/palm-cli invoice-mcp',
   'design-mcp': 'palm design-mcp   The image desk as a local MCP server over stdio. Claude Code: claude mcp add palm-design -- npx -y github:pearcoderman/palm-cli design-mcp',
@@ -371,28 +382,32 @@ switch (cmd) {
   }
   case 'brief': {
     const a = rest, opt = (n, d) => { const i = a.indexOf('--' + n); return i >= 0 && a[i + 1] && !a[i + 1].startsWith('--') ? a[i + 1] : d; }, has = (n) => a.includes('--' + n);
-    if (!(await invoicePro())) { print('The brief is part of Palm Pro. Run `palm login` (or set PALM_KEY). About Pro: https://www.yuzool.com/palm/#pro', { locked: true }); process.exit(3); }
+    const pro = await invoicePro();
+    if (!pro) { print('The weekly brief is part of Palm Pro. Run `palm login` (or set PALM_KEY). About Pro: https://www.yuzool.com/palm/#pro', { locked: true }); process.exit(3); }
     if (a[0] === 'schedule') {
       const { homedir } = await import('node:os'), { configDir } = await import('../lib/client.mjs');
-      const day = String(opt('day', 'mon')).slice(0, 3).toLowerCase(), hour = Number(opt('hour', 9)), wd = briefs.WEEKDAYS[day];
-      if (wd == null || !(hour >= 0 && hour <= 23)) fail('--day mon…sun, --hour 0 to 23.');
-      const viaNpx = /[\\/]_npx[\\/]/.test(process.argv[1]), args = [...(viaNpx ? [join(process.execPath, '..', 'npx'), '-y', 'github:pearcoderman/palm-cli'] : [process.execPath, process.argv[1]]), 'brief', '--save', '--notify'];
-      if (process.platform !== 'darwin') { print(`Add this to your scheduler (Palm doesn't edit it for you):\n\n${invoice.cronLine({ hour, args }).replace(/^(\S+ \S+) \* \* \*/, `$1 * * ${wd}`)}`, { args }); break; }
+      const day = String(opt('day', 'mon')).slice(0, 3).toLowerCase(), wd = briefs.WEEKDAYS[day], at = briefs.parseTime(opt('time', opt('hour', '9:00')));
+      if (wd == null || !at) fail('--day mon…sun, --time 09:00 (24-hour).');
+      const { hour, minute } = at, hhmm = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`, to = opt('email-draft', '');
+      const viaNpx = /[\\/]_npx[\\/]/.test(process.argv[1]), args = [...(viaNpx ? [join(process.execPath, '..', 'npx'), '-y', 'github:pearcoderman/palm-cli'] : [process.execPath, process.argv[1]]), 'brief', '--save', '--notify', ...(has('email-draft') ? ['--email-draft', ...(to ? [to] : [])] : [])];
+      if (process.platform !== 'darwin') { print(`Add this to your scheduler (Palm doesn't edit it for you):\n\n${invoice.cronLine({ hour, minute, args }).replace(/^(\S+ \S+) \* \* \*/, `$1 * * ${wd}`)}`, { args }); break; }
       const agent = join(homedir(), 'Library', 'LaunchAgents', briefs.BRIEF_AGENT + '.plist'), uid = process.getuid();
       spawnSync('launchctl', ['bootout', `gui/${uid}`, agent], { stdio: 'ignore' });
-      if (has('remove')) { const { rmSync } = await import('node:fs'); rmSync(agent, { force: true }); print('Removed: no more weekly briefs.', { removed: agent }); break; }
+      if (has('remove') || has('off')) { const { rmSync } = await import('node:fs'); rmSync(agent, { force: true }); print('Removed: no more weekly briefs.', { removed: agent }); break; }
       if (!existsSync(join(configDir(), 'key'))) fail('The weekly job runs without your shell, so it can\'t see PALM_KEY. Save the key first: palm login', 3);
       const log = join(homedir(), 'Library', 'Logs', 'palm-brief.log');
-      writeFileSync(agent, invoice.plist({ label: briefs.BRIEF_AGENT, weekday: wd, hour, args, log }));
+      writeFileSync(agent, invoice.plist({ label: briefs.BRIEF_AGENT, weekday: wd, hour, minute, args, log }));
       const b = spawnSync('launchctl', ['bootstrap', `gui/${uid}`, agent], { encoding: 'utf8' });
       if (b.status !== 0) fail(`Wrote ${agent} but launchctl refused it: ${(b.stderr || '').trim()}`, 4);
-      print(`Every ${day[0].toUpperCase() + day.slice(1)} at ${hour}:00 this Mac writes the brief to ${briefs.briefDir()} and shows a notification.\n  agent: ${agent}\nStop it: palm brief schedule --remove`, { agent, args });
+      const env = briefs.envOnly();
+      print(`Every ${day[0].toUpperCase() + day.slice(1)} at ${hhmm} this Mac writes the brief to ${briefs.briefDir()} (Markdown and a web page) and shows a notification with the summary.${has('email-draft') ? ' It also writes an unsent .eml draft there.' : ''}\n  agent: ${agent}\n  log: ${log}${env.length ? `\nThe weekly job can't see this shell's environment variables, so these would show "not connected": ${env.join('; ')}.` : ''}\nStop it: palm brief schedule --off`, { agent, args, envOnly: env });
       break;
     }
-    const b = await briefs.brief({ days: Number(opt('days', 7)) });
-    let file = null; if (has('save')) file = briefs.saveBrief(b, opt('save', undefined));
-    if (has('notify') && process.platform === 'darwin') spawnSync('osascript', ['-e', 'on run argv', '-e', 'display notification (item 1 of argv) with title "Palm brief"', '-e', 'end run', `${b.todo.length ? b.todo.length + ' thing' + (b.todo.length > 1 ? 's' : '') + ' to do today' : 'Nothing urgent'}${file ? ' · ' + file.split('/').pop() : ''}`], { stdio: 'ignore' });
-    print(b.markdown + (file ? `\nSaved to ${file}` : ''), { ...b, file });
+    const b = await briefs.brief({ days: Number(opt('days', 7)), pro });
+    let file = null, eml = null; if (has('save')) file = briefs.saveBrief(b, opt('save', undefined));
+    if (has('email-draft')) eml = briefs.saveEmailDraft(b, opt('save', undefined), { to: opt('email-draft', '') });
+    if (has('notify') && process.platform === 'darwin') spawnSync('osascript', briefs.notifyArgs(b), { stdio: 'ignore' });
+    print(b.markdown + (file ? `\nSaved to ${file} (and .html; latest.md / latest.html beside it)` : '') + (eml ? `\nEmail draft (not sent): ${eml}` : ''), { ...b, file, eml });
     break;
   }
   case 'outreach-mcp': { outreachServe(); break; }
@@ -463,6 +478,8 @@ switch (cmd) {
   }
   case 'design-mcp': { designServe(); break; }
   case 'pdf-mcp': { pdfServe(); break; }
+  case 'social-mcp': { socialServe(); break; }
+  case 'social': { process.exit(await social.cli(rest, { print, fail, pro: socialPro })); }
   case 'pdf': { process.exit(await pdf.cli(rest, { print, fail, pro: pdfPro })); }
   case 'passport-mcp': { passportServe(); break; }
   case 'passport': {
